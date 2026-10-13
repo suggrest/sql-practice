@@ -67,3 +67,11 @@ where (departmentId, salary) in
      from employee
      group by departmentId)
 
+-- решение с ранжирующей функцией через подзапрос в from
+
+select department, employee, salary
+from(
+    select d.name as 'Department', e.name as 'Employee', salary,
+           dense_rank() over (partition by d.name order by salary desc) as 'rank'
+    from employee as e inner join department as d on e.departmentId = d.id) as tmp
+where tmp.rank = 1
