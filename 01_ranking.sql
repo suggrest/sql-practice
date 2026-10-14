@@ -1,4 +1,4 @@
---leetcode #178
+-- leetcode #178
 
 -- +-------------+---------+
 -- | Column Name | Type    |
@@ -25,7 +25,7 @@ from scores
 
 
 
---leetcode #184
+-- leetcode #184
 
 -- Table: Employee
 
