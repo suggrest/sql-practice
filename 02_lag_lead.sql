@@ -76,3 +76,27 @@ JOIN
     Weather w2 ON DATEDIFF(w1.recordDate, w2.recordDate) = 1
 WHERE 
     w1.temperature > w2.temperature;
+
+-- leetcode #1369
+
+-- Таблица: UserActivity
+
+-- Column Name	Type
+-- username	varchar
+-- activity	varchar
+-- startDate	Date
+-- endDate	Date
+-- Таблица содержит информацию об активности каждого пользователя за период. У одного пользователя не может быть двух активностей одновременно.
+
+-- Задача: Написать SQL-запрос, который показывает вторую по свежести активность каждого пользователя.
+
+-- Особое условие: Если у пользователя только одна активность — вернуть именно её .
+
+select username, activity, startDate, endDate
+from (select *, 
+       dense_rank() over (partition by username order by endDate desc) as rnk, 
+       count(*) over(partition by username) as cnt
+from UserActivity) as tmp
+where (rnk = 2) or (cnt < 2)
+
+-- обратить внимание на подсчет общего количества активностей без группировки и размазываением по строкам
