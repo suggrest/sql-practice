@@ -64,3 +64,50 @@ from
 from customer
 group by visited_on) as tmp) as tmp1
 where row_rank > 6
+
+
+-- Задача дня:
+
+-- Задача на streaks — найти пользователей, которые заходили как минимум 3 дня подряд.
+
+-- Условие:
+
+-- Дана таблица Logins:
+
+-- Column Name	Type
+-- user_id	int
+-- login_date	date
+-- Нужно найти всех пользователей, которые заходили как минимум 3 дня подряд. Вернуть user_id без дубликатов.
+
+select distinct user_id from
+(select user_id, id, count(*) as len
+from
+(select user_id, login_date,
+       sum(series) over (partition by user_id order by login_date) as id
+from
+    (select user_id, login_date,
+     case
+       when (prev_date is null) or (julianday(login_date) - julianday(prev_date) > 1)
+         then 1
+       else 0
+     end as series
+     from
+        (select *, lag(login_date) over (partition by user_id order by login_date) as prev_date
+         from
+            (select distinct user_id, login_date
+             from logins) as dedup) as prev_table) as mark)
+group by user_id, id) as streak_len
+where len > 2
+
+-- В SQLite нет DATEDIFF, поэтому разницу в днях считают через JULIANDAY(date1) - JULIANDAY(date2). В PostgreSQL было бы login_date - LAG(...). Это стоит держать в голове, если будете проверять в DB Fiddle на SQLite.
+
+-- 1. SELECT DISTINCT * — рискованно, если в таблице больше двух колонок.
+-- В текущей схеме Logins только user_id и login_date, поэтому DISTINCT * работает. Но если бы в таблице были другие поля (например, device_id или session_id), DISTINCT * не убрал бы дубликаты по дате — строки отличались бы по другим полям. Правильнее явно указать: SELECT DISTINCT user_id, login_date.
+-- 2. COUNT(*) считает строки, а не уникальные дни.
+-- После дедупликации каждая строка — это уникальный день для пользователя, поэтому COUNT(*) корректен. Но если бы дедупликации не было, COUNT(*) посчитал бы входы, а не дни. Стоит проговорить на собеседовании, что дедупликация — обязательный шаг перед подсчётом длины серии.
+-- 3. len > 2 — это «как минимум 3 дня».
+-- Формулировка «ровно 3» была бы len = 3, «ровно 5» — len = 5. У вас > 2 соответствует условию «как минимум 3», это правильно для текущей задачи.
+-- 4. SELECT user_id без DISTINCT во внешнем запросе.
+-- Если у пользователя несколько серий длиной 3+, он появится в результате несколько раз. В условии сказано «вернуть user_id без дубликатов», поэтому стоит добавить DISTINCT во внешний SELECT. На данных из примера у user_id = 1 только одна серия, поэтому дубликата не будет — но на других данных это может выстрелить.
+-- 5. ORDER BY login_date внутри окна SUM — обязателен.
+-- Он задаёт порядок накопления серий. Без него SUM OVER использовал бы произвольный порядок, и номера серий могли бы присваиваться неверно. У вас он есть — это правильно.
