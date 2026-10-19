@@ -110,4 +110,39 @@ where len > 2
 -- 4. SELECT user_id без DISTINCT во внешнем запросе.
 -- Если у пользователя несколько серий длиной 3+, он появится в результате несколько раз. В условии сказано «вернуть user_id без дубликатов», поэтому стоит добавить DISTINCT во внешний SELECT. На данных из примера у user_id = 1 только одна серия, поэтому дубликата не будет — но на других данных это может выстрелить.
 -- 5. ORDER BY login_date внутри окна SUM — обязателен.
+
+-- через cte
+
+WITH dedup AS (
+    SELECT DISTINCT user_id, login_date
+    FROM Logins
+),
+prev_table AS (
+    SELECT *,
+           LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) AS prev_date
+    FROM dedup
+),
+mark AS (
+    SELECT user_id, login_date,
+           CASE
+               WHEN prev_date IS NULL
+                    OR JULIANDAY(login_date) - JULIANDAY(prev_date) > 1
+               THEN 1
+               ELSE 0
+           END AS series
+    FROM prev_table
+),
+ser_ies AS (
+    SELECT user_id, login_date,
+           SUM(series) OVER (PARTITION BY user_id ORDER BY login_date) AS id
+    FROM mark
+),
+streak_len AS (
+    SELECT user_id, id, COUNT(*) AS len
+    FROM ser_ies
+    GROUP BY user_id, id
+)
+SELECT DISTINCT user_id
+FROM streak_len
+WHERE len > 2;
 -- Он задаёт порядок накопления серий. Без него SUM OVER использовал бы произвольный порядок, и номера серий могли бы присваиваться неверно. У вас он есть — это правильно.
