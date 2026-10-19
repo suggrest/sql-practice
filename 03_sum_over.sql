@@ -65,6 +65,22 @@ from customer
 group by visited_on) as tmp) as tmp1
 where row_rank > 6
 
+ -- через cte
+
+ with daily as (
+    select visited_on, sum(amount) as amount
+    from customer
+    group by visited_on
+),
+tmp as (select visited_on, 
+       sum(amount) over (order by visited_on rows between 6 preceding and current row) as amount,
+       round(avg(amount) over (order by visited_on rows between 6 preceding and current row), 2) as average_amount,
+       row_number() over (order by visited_on) as row_num
+from daily)
+select visited_on, amount, average_amount
+from tmp
+where row_num > 6
+
 
 -- Задача дня:
 
