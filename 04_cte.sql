@@ -83,3 +83,55 @@ FROM (
 WHERE avg_amount > overall_avg
 ORDER BY avg_amount DESC;
 
+-- Задача дня:
+
+-- Найти пользователей, у которых была серия из 3+ дней подряд с ежедневной выручкой выше их собственного среднего дневного значения, и вывести начало серии, конец серии и суммарную выручку за серию.
+
+-- Это задача, где смешиваются все инструменты недель 1–2: агрегация, LAG, SUM OVER, ранжирование и CTE.
+
+-- Условие:
+
+-- Дана таблица Purchases:
+
+-- Column Name	Type
+-- purchase_id	int
+-- user_id	int
+-- purchase_date	date
+-- amount	int
+-- Нужно для каждого пользователя:
+
+-- Посчитать его среднюю дневную выручку (среднее по дням, где были покупки).
+
+-- Найти непрерывные серии дней, в каждом из которых дневная выручка была строго выше этого среднего.
+
+-- Оставить только серии длиной 3+ дня.
+
+-- Вывести: user_id, streak_start (первый день серии), streak_end (последний день), streak_revenue (суммарная выручка за серию).
+
+with unique_purchase as (select user_id, purchase_date, sum(amount) as amount from purchases group by user_id, purchase_date),
+
+prev_avg as (SELECT *, avg(amount) over (partition by user_id) as user_avg
+FROM unique_purchase),
+
+filtered as (select * FROM PREV_AVG
+where amount > user_avg),
+
+marked as (select *,
+case
+  when (lag(purchase_date) over (partition by user_id order by purchase_date) is null) or (julianday(purchase_date) - julianday(lag(purchase_date) over (partition by user_id order by purchase_date)) > 1)
+  then 1 
+    else 0
+  end as series
+from filtered),
+
+streaked as (select user_id, purchase_date, amount, sum(series) over (partition by user_id order by purchase_date) as streak from marked)
+
+SELECT user_id,
+       MIN(purchase_date) AS streak_start,
+       MAX(purchase_date) AS streak_end,
+       SUM(amount) AS streak_revenue,
+       COUNT(*) AS days_in_streak
+FROM streaked
+GROUP BY user_id, streak
+HAVING COUNT(*) >= 3
+ORDER BY user_id, streak_start;
